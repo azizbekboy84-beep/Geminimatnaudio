@@ -144,18 +144,14 @@
         </div>
     </div>
 
-    <!-- Config faylini yuklash -->
-    <script src="config.js"></script>
-    
     <!-- JavaScript Logikasi -->
     <script>
         // Global o'zgaruvchilar
         const FLASH_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent";
         const TTS_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
         const IMAGE_GEN_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent";
-        // API KEY config.js faylidan olinadi
-        // Production uchun to'g'ridan-to'g'ri kiriting (xavfsizlik uchun backend kerak)
-        const API_KEY = CONFIG?.GEMINI_API_KEY || "AIzaSyBBkABAtK99L5AG-oEKGMZsgoJa4XmrBU4"; 
+        // API KEY - Production uchun to'g'ridan-to'g'ri (xavfsizlik uchun backend tavsiya etiladi)
+        const API_KEY = "AIzaSyBBkABAtK99L5AG-oEKGMZsgoJa4XmrBU4"; 
 
         // API kalitni tekshirish
         if (!API_KEY || API_KEY === "YOUR_API_KEY_HERE") {
