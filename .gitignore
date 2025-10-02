@@ -1,0 +1,9 @@
+# Environment variables
+.env
+.env.local
+
+# Config file (API kalitlar)
+config.js
+
+# Example config (commit qilinadi)
+# config.example.js yoki config.template.js

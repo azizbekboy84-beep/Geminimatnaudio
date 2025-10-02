@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 2.5 Flash Ilovasi</title>
+    <!-- Tailwind CSS ni yuklash (tezkor dizayn uchun) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Inter shriftini ishlatish */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+        }
+        /* Yozish maydonini vertikal siljishsiz qilish */
+        #prompt-input {
+            resize: none;
+            transition: all 0.2s;
+        }
+        /* API javobi uchun maxsus stil */
+        #response-output {
+            min-height: 150px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border-left: 4px solid #3b82f6; /* Moviy chiziq */
+        }
+        /* Rasm kontayner uchun stil */
+        #image-output {
+            display: none;
+            text-align: center;
+        }
+        #generated-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Asosiy Kontayner -->
+    <div class="w-full max-w-2xl bg-white shadow-xl rounded-2xl p-6 md:p-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 text-center">
+            Gemini 2.5 Flash
+        </h1>
+        <p class="text-center text-gray-500 mb-6">
+            Gemini modelidan tezkor javob olish uchun savol yoki topshiriqni kiriting.
+        </p>
+
+        <!-- Kiritish Formasi -->
+        <div class="mb-4">
+            <textarea
+                id="prompt-input"
+                class="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition shadow-sm"
+                rows="4"
+                placeholder="Misol: O'zbekistonda eng tez o'sadigan uchta daraxt nomini yozing (yoki Rasm uchun: moviy rangli samolyot uchmoqda)..."
+            ></textarea>
+        </div>
+
+        <!-- Asosiy Tugmalar va Holat Ko'rsatkichi -->
+        <div class="flex flex-col md:flex-row justify-between items-center space-y-3 md:space-y-0 md:space-x-4 mb-6">
+            <!-- Asosiy Generatsiya Tugmasi -->
+            <button
+                id="generate-button"
+                onclick="generateContent()"
+                class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition duration-300 ease-in-out shadow-lg shadow-blue-500/50 flex items-center justify-center"
+            >
+                <svg id="loading-spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="button-text">Matn Generatsiyalash</span>
+            </button>
+            <div id="status-message" class="text-sm text-gray-600 font-medium h-6 flex items-center">
+                Tayyor.
+            </div>
+        </div>
+        
+        <!-- Qo'shimcha Gemini funksiyalari -->
+        <div class="flex flex-wrap gap-3 mb-6 border-b pb-4">
+            <!-- Rasm Generatsiyalash - Hozircha mavjud emas -->
+            <!-- <button
+                id="generate-image-button"
+                onclick="generateImage()"
+                class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-xl transition duration-300 shadow-md flex items-center"
+                disabled
+                title="Bu xizmat sizning API rejangizda mavjud emas"
+            >
+                🎨 Rasm yaratish (Mavjud emas)
+            </button> -->
+            <!-- Matnni Qisqartirish -->
+            <button
+                id="summarize-button"
+                onclick="summarizeText()"
+                class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-xl transition duration-300 shadow-md flex items-center disabled:opacity-50"
+                disabled
+            >
+                ✨ Matnni qisqartirish
+            </button>
+            <!-- Ovozli Javob -->
+            <button
+                id="tts-button"
+                onclick="playResponseAudio()"
+                class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-xl transition duration-300 shadow-md flex items-center disabled:opacity-50"
+                disabled
+            >
+                ✨ Ovozli javob (Tinglash)
+            </button>
+        </div>
+
+
+        <!-- Javob Qismi -->
+        <h2 class="text-xl font-bold text-gray-800 mb-3 border-b pb-2">
+            AI Javobi
+        </h2>
+        
+        <!-- Matn Javobi -->
+        <div
+            id="response-output"
+            class="p-4 bg-gray-50 rounded-lg text-gray-700 text-base leading-relaxed border border-gray-200"
+        >
+            Javob shu yerda paydo bo'ladi.
+        </div>
+
+        <!-- Rasm Javobi -->
+        <div id="image-output" class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <img id="generated-image" src="" alt="Yaratilgan rasm" class="mx-auto" />
+            <p id="image-prompt-display" class="mt-2 text-sm text-gray-500"></p>
+        </div>
+
+
+        <!-- Ovozni ijro etish maydoni (yashirin audio element orqali) -->
+        <audio id="response-audio" controls class="hidden w-full mt-4"></audio>
+
+        <!-- Manbalar Qismi -->
+        <div id="sources-container" class="mt-6 hidden">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Manbalar:</h3>
+            <ul id="sources-list" class="space-y-1 text-sm text-gray-500">
+                <!-- Manbalar shu yerga joylashtiriladi -->
+            </ul>
+        </div>
+    </div>
+
+    <!-- Config faylini yuklash -->
+    <script src="config.js"></script>
+    
+    <!-- JavaScript Logikasi -->
+    <script>
+        // Global o'zgaruvchilar
+        const FLASH_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent";
+        const TTS_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
+        const IMAGE_GEN_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent";
+        // API KEY config.js faylidan olinadi
+        const API_KEY = CONFIG?.GEMINI_API_KEY || ""; 
+
+        // API kalitni tekshirish
+        if (!API_KEY || API_KEY === "YOUR_API_KEY_HERE") {
+            console.error("❌ API kalit topilmadi! config.js faylini tekshiring.");
+        }
+
+        const promptInput = document.getElementById('prompt-input');
+        const generateButton = document.getElementById('generate-button');
+        // const generateImageButton = document.getElementById('generate-image-button'); // O'chirilgan
+        const summarizeButton = document.getElementById('summarize-button');
+        const ttsButton = document.getElementById('tts-button');
+        const buttonText = document.getElementById('button-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const statusMessage = document.getElementById('status-message');
+        const responseOutput = document.getElementById('response-output');
+        const imageOutput = document.getElementById('image-output');
+        const generatedImage = document.getElementById('generated-image');
+        const imagePromptDisplay = document.getElementById('image-prompt-display');
+        const sourcesContainer = document.getElementById('sources-container');
+        const sourcesList = document.getElementById('sources-list');
+        const responseAudio = document.getElementById('response-audio');
+
+        /**
+         * UI holatini boshqarish
+         * @param {boolean} isLoading - Yuklanish holati
+         * @param {string} mode - Qaysi funksiya yuklanayotganini ko'rsatadi ('generate', 'summarize', 'tts', 'image')
+         */
+        function setUIState(isLoading, mode = 'generate') {
+            const isGenerating = isLoading;
+            
+            promptInput.disabled = isGenerating;
+            generateButton.disabled = isGenerating;
+            // generateImageButton.disabled = isGenerating; // O'chirilgan
+
+            // Qisqartirish uchun minimal matn uzunligi 50 ta belgi
+            summarizeButton.disabled = isGenerating || responseOutput.textContent.length < 50; 
+            // TTS uchun javob bo'lishi kerak
+            ttsButton.disabled = isGenerating || responseOutput.textContent.trim() === 'Javob shu yerda paydo bo\'ladi.';
+
+
+            if (isLoading) {
+                loadingSpinner.classList.remove('hidden');
+                generateButton.disabled = true;
+                // generateImageButton.disabled = true; // O'chirilgan
+
+                if (mode === 'generate') {
+                    buttonText.textContent = 'Generatsiyalash...';
+                    statusMessage.textContent = 'AI javobni tahlil qilmoqda...';
+                } else if (mode === 'summarize') {
+                    summarizeButton.textContent = 'Qisqartirilmoqda...';
+                    statusMessage.textContent = 'Matn qisqartirilmoqda...';
+                } else if (mode === 'tts') {
+                    ttsButton.textContent = 'Ovoz yaratilmoqda...';
+                    statusMessage.textContent = 'Ovozli fayl generatsiyalanmoqda...';
+                } else if (mode === 'image') {
+                    // generateImageButton.textContent = 'Rasm yaratilmoqda... (Kuting)'; // O'chirilgan
+                    statusMessage.textContent = 'Rasm generatsiyalash mavjud emas.';
+                }
+            } else {
+                buttonText.textContent = 'Matn Generatsiyalash';
+                // generateImageButton.textContent = '🎨 Rasm yaratish'; // O'chirilgan
+                summarizeButton.textContent = '✨ Matnni qisqartirish';
+                ttsButton.textContent = '✨ Ovozli javob (Tinglash)';
+                loadingSpinner.classList.add('hidden');
+                statusMessage.textContent = 'Tayyor.';
+            }
+        }
+        
+        /**
+         * Xatoliklarni qayta urinish (Exponential Backoff) bilan API so'rovini yuborish
+         * @param {string} url - API URL
+         * @param {object} payload - So'rov yuki
+         * @param {number} maxRetries - Maksimal urinishlar soni
+         * @param {string} mode - UI holatini boshqarish uchun
+         * @returns {Promise<object|null>} API javobi yoki null
+         */
+        async function fetchWithRetry(url, payload, maxRetries = 3, mode = 'generate') {
+            let attempt = 0;
+            const targetUrl = `${url}?key=${API_KEY}`; // API kalitini URL ga qo'shish
+
+            while (attempt < maxRetries) {
+                try {
+                    const response = await fetch(targetUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        // 401 va 403 xatosi yuz berganda qo'shimcha xabar berish
+                        if (response.status === 401 || response.status === 403) {
+                            throw new Error(`HTTP xatosi! Holat: ${response.status} (API kalit xatosi). Iltimos, to'g'ri API kalitini config.js faylida kiriting. API kalit https://aistudio.google.com/apikey dan olinadi.`);
+                        }
+
+                        // 429 - Rate Limit xatosi
+                        if (response.status === 429) {
+                            if (attempt < maxRetries - 1) {
+                                const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                                statusMessage.textContent = `Server band. ${delay.toFixed(0)}ms dan keyin qayta urinish...`;
+                                await new Promise(resolve => setTimeout(resolve, delay));
+                                attempt++;
+                                continue;
+                            } else {
+                                throw new Error(`HTTP xatosi! Holat: 429 (Juda ko'p so'rov). API kalit noto'g'ri yoki so'rovlar limiti tugagan. Biroz kutib qaytadan urinib ko'ring yoki API kalitni tekshiring.`);
+                            }
+                        }
+                        
+                        // 400 - Bad Request (rasm generatsiya uchun)
+                        if (response.status === 400 && mode === 'image') {
+                            throw new Error(`HTTP xatosi! Holat: 400 (Noto'g'ri so'rov). Rasm generatsiyalash sizning hisob rejangizda mavjud emas yoki faollashtirish talab qilinadi. Matn generatsiyalash ishlaydi.`);
+                        }
+                        
+                        throw new Error(`HTTP xatosi! Holat: ${response.status}`);
+                    }
+
+                    return await response.json();
+                    
+                } catch (error) {
+                    if (attempt < maxRetries - 1) {
+                        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                        console.error(`Urinish ${attempt + 1} muvaffaqiyatsiz. Qayta urinish...`, error);
+                        statusMessage.textContent = `Aloqa xatosi. ${delay.toFixed(0)}ms dan keyin qayta urinish...`;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        attempt++;
+                    } else {
+                        // Oxirgi urinishda ham muvaffaqiyatsizlikka uchrasa, xatoni to'g'ridan-to'g'ri qaytarish
+                        console.error('Barcha urinishlar muvaffaqiyatsiz tugadi:', error);
+                        throw error; // Xatoni yuqoriga uzatish
+                    }
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Asosiy matn generatsiyalash funksiyasi
+         */
+        async function generateContent() {
+            const userQuery = promptInput.value.trim();
+
+            if (!userQuery) {
+                responseOutput.innerHTML = '<span class="text-red-500 font-semibold">Iltimos, avval savol yoki topshiriqni kiriting.</span>';
+                return;
+            }
+
+            setUIState(true, 'generate');
+            responseOutput.textContent = 'Model javobni tahlil qilmoqda. Kuting...';
+            responseOutput.classList.remove('hidden'); // Matn javobi ko'rsatilsin
+            imageOutput.style.display = 'none'; // Rasm javobini yashirish
+            responseAudio.classList.add('hidden'); // Ovoz elementini yashirish
+            sourcesContainer.classList.add('hidden');
+            sourcesList.innerHTML = '';
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: {
+                    parts: [{ text: "Siz professional va yordamchi AI assistentisiz. Foydalanuvchi so'rovlariga batafsil, ravon va uzbek tilida javob bering." }]
+                }
+            };
+            
+            try {
+                const result = await fetchWithRetry(FLASH_API_URL, payload, 3, 'generate');
+                
+                if (!result) {
+                    responseOutput.innerHTML = `<span class="text-red-500 font-semibold">Ulanishda kutilmagan xato yuz berdi. Konsolni tekshiring.</span>`;
+                    return;
+                }
+
+                if (!result.candidates || result.candidates.length === 0) {
+                    responseOutput.innerHTML = '<span class="text-red-500 font-semibold">Model javob bera olmadi. Boshqa savol bilan urinib ko\'ring.</span>';
+                    return;
+                }
+
+                const candidate = result.candidates[0];
+                const text = candidate.content?.parts?.[0]?.text;
+
+                if (text) {
+                    responseOutput.textContent = text;
+                    
+                    // Manbalarni (Sources) ajratib olish va ko'rsatish
+                    const groundingMetadata = candidate.groundingMetadata;
+                    sourcesList.innerHTML = '';
+                    if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                        const sources = groundingMetadata.groundingAttributions
+                            .map(attribution => ({
+                                uri: attribution.web?.uri,
+                                title: attribution.web?.title,
+                            }))
+                            .filter(source => source.uri && source.title);
+                        
+                        if (sources.length > 0) {
+                            sourcesContainer.classList.remove('hidden');
+                            sources.forEach((source, index) => {
+                                const li = document.createElement('li');
+                                li.innerHTML = `
+                                    <a href="${source.uri}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline transition">
+                                        ${index + 1}. ${source.title}
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4m-4-2h8m0 0l-4-4m4 4l-4 4" />
+                                        </svg>
+                                    </a>
+                                `;
+                                sourcesList.appendChild(li);
+                            });
+                        } else {
+                            sourcesContainer.classList.add('hidden');
+                        }
+                    } else {
+                        sourcesContainer.classList.add('hidden');
+                    }
+
+                } else {
+                    responseOutput.innerHTML = '<span class="text-red-500 font-semibold">Javob matni bo\'sh. Kiritilgan ma\'lumotni tekshiring.</span>';
+                }
+            } catch (e) {
+                responseOutput.innerHTML = `<span class="text-red-500 font-semibold">${e.message}</span>`;
+            } finally {
+                setUIState(false, 'generate');
+            }
+        }
+
+        /**
+         * Rasm generatsiyalash funksiyasi (Gemini 2.0 Flash orqali)
+         */
+        async function generateImage() {
+            const userPrompt = promptInput.value.trim();
+
+            if (!userPrompt) {
+                responseOutput.innerHTML = '<span class="text-red-500 font-semibold">Iltimos, avval rasm uchun tavsifni kiriting.</span>';
+                return;
+            }
+
+            setUIState(true, 'image');
+            // Matn javobini yashirish va rasm konteynerini ko'rsatish
+            responseOutput.classList.add('hidden'); 
+            imageOutput.style.display = 'block'; 
+            generatedImage.src = '';
+            imagePromptDisplay.textContent = 'Rasm yaratilmoqda...';
+            sourcesContainer.classList.add('hidden');
+            responseAudio.classList.add('hidden');
+
+            const payload = {
+                contents: [{
+                    parts: [{
+                        text: `Generate an image: ${userPrompt}`
+                    }]
+                }],
+                generationConfig: {
+                    responseModalities: ["IMAGE"]
+                }
+            };
+            
+            try {
+                // Rasm generatsiyalash uchun Gemini API'ga so'rov
+                const result = await fetchWithRetry(IMAGE_GEN_API_URL, payload, 3, 'image');
+                
+                if (!result || !result.candidates || result.candidates.length === 0) {
+                    throw new Error("Rasm generatsiyalash muvaffaqiyatsiz yakunlandi. Boshqa prompt bilan urinib ko'ring.");
+                }
+
+                const candidate = result.candidates[0];
+                const imagePart = candidate.content?.parts?.find(part => part.inlineData?.mimeType?.startsWith('image/'));
+                
+                if (!imagePart || !imagePart.inlineData?.data) {
+                    throw new Error("Rasm ma'lumotlari topilmadi. Bu xizmat sizning hisob rejangizda mavjud emas.");
+                }
+                
+                const base64Data = imagePart.inlineData.data;
+                const mimeType = imagePart.inlineData.mimeType;
+                const imageUrl = `data:${mimeType};base64,${base64Data}`;
+
+                generatedImage.src = imageUrl;
+                imagePromptDisplay.textContent = `Prompt: "${userPrompt}"`;
+                statusMessage.textContent = 'Rasm muvaffaqiyatli yaratildi!';
+
+            } catch (e) {
+                imageOutput.style.display = 'block';
+                imagePromptDisplay.innerHTML = `<span class="text-red-500 font-semibold">${e.message}</span>`;
+            } finally {
+                setUIState(false, 'image');
+            }
+        }
+
+
+        /**
+         * Gemini API yordamida matnni qisqartirish
+         */
+        async function summarizeText() {
+            const currentText = responseOutput.textContent.trim();
+
+            if (currentText.length < 50) {
+                responseOutput.innerHTML = '<span class="text-red-500 font-semibold">Qisqartirish uchun kamida 50 ta belgi bo\'lishi kerak. Avval javob generatsiyalang.</span>';
+                return;
+            }
+            
+            // UI elementlarini yashirish/ko'rsatish
+            imageOutput.style.display = 'none'; // Rasm javobini yashirish
+            responseOutput.classList.remove('hidden'); // Matn javobini ko'rsatish
+
+            // TTS tugmasini vaqtinchalik o'chirib qo'yish
+            setUIState(true, 'summarize');
+            const originalText = responseOutput.textContent;
+            responseOutput.textContent = 'Matn qisqartirilmoqda, kuting...';
+
+            const userQuery = `Quyidagi matnni O'zbek tilida, bir xatboshi hajmida, asosiy ma'lumotlarni saqlagan holda qisqartirib bering: \n\n${originalText}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: "Siz professional AI tahlilchisiz. Matnni qisqa, aniq va mazmunli qilib O'zbek tilida qayta yozing." }]
+                }
+            };
+
+            try {
+                const result = await fetchWithRetry(FLASH_API_URL, payload, 3, 'summarize');
+
+                if (!result || !result.candidates || result.candidates.length === 0) {
+                    responseOutput.innerHTML = '<span class="text-red-500 font-semibold">Qisqartirish xizmati javob bera olmadi.</span>';
+                    return;
+                }
+
+                const summarizedText = result.candidates[0].content?.parts?.[0]?.text;
+
+                if (summarizedText) {
+                    responseOutput.textContent = summarizedText;
+                    sourcesContainer.classList.add('hidden');
+                    statusMessage.textContent = 'Matn muvaffaqiyatli qisqartirildi.';
+                } else {
+                    responseOutput.textContent = originalText; 
+                    statusMessage.textContent = 'Qisqartirish muvaffaqiyatsiz tugadi.';
+                }
+            } catch (e) {
+                 responseOutput.innerHTML = `<span class="text-red-500 font-semibold">${e.message}</span>`;
+                 responseOutput.textContent = originalText;
+            } finally {
+                setUIState(false, 'summarize');
+            }
+        }
+
+
+        /**
+         * TTS API orqali javob matnini ovozga aylantirish va ijro etish
+         */
+        async function playResponseAudio() {
+            const textToSpeak = responseOutput.textContent.trim();
+
+            if (textToSpeak === 'Javob shu yerda paydo bo\'ladi.' || responseOutput.classList.contains('hidden')) {
+                statusMessage.textContent = 'Avval matnli javob generatsiyalang.';
+                return;
+            }
+            
+            // UI elementlarini yashirish/ko'rsatish
+            imageOutput.style.display = 'none'; // Rasm javobini yashirish
+            responseOutput.classList.remove('hidden'); // Matn javobini ko'rsatish
+
+
+            setUIState(true, 'tts');
+            responseAudio.classList.remove('hidden');
+            responseAudio.pause();
+            responseAudio.removeAttribute('src');
+            
+            // TTS API uchun maxsus payload
+            const payload = {
+                contents: [{
+                    // Radio boshlovchisi ohangi va Toshkent shevasi talabi
+                    parts: [{ text: `Speak in a professional, warm, and engaging radio broadcasting tone, ensuring a natural and pure Uzbek pronunciation, specifically targeting the Tashkent dialect: ${textToSpeak}` }]
+                }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            // "Achird" ovozi (Friendly, Samimiy ohang uchun eng mos)
+                            prebuiltVoiceConfig: { voiceName: "Achird" } 
+                        },
+                        // Tilni aniqlash
+                        languageCode: "uz-UZ" 
+                    }
+                },
+            };
+
+            try {
+                const result = await fetchWithRetry(TTS_API_URL, payload, 3, 'tts');
+                
+                if (!result) {
+                    statusMessage.textContent = 'Ovoz generatsiyalashda ulanish xatosi yuz berdi.';
+                    return;
+                }
+
+                const audioPart = result?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = audioPart?.inlineData?.data;
+                const mimeType = audioPart?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                    try {
+                        // PCM (Pulse Code Modulation) audio ma'lumotlarini ArrayBufferga aylantirish
+                        const pcmData = base64ToArrayBuffer(audioData);
+                        
+                        // API 16-bit imzoli PCM ma'lumotlarini qaytaradi
+                        const pcm16 = new Int16Array(pcmData);
+                        
+                        // Sample rate (Ovoz tezligi) ni mimeType dan ajratib olish (yoki taxminan 24000 ishlatish)
+                        const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                        const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+
+                        // PCM ni WAV fayl formatiga o'tkazish
+                        const wavBlob = pcmToWav(pcm16, sampleRate);
+                        
+                        // Blob'dan URL yaratish va audio elementga yuklash
+                        const audioUrl = URL.createObjectURL(wavBlob);
+                        responseAudio.src = audioUrl;
+                        responseAudio.play();
+                        
+                        statusMessage.textContent = 'Ovoz ijro etilmoqda.';
+
+                    } catch (e) {
+                        console.error("Audio formatini o'zgartirish xatosi:", e);
+                        statusMessage.textContent = "Ovozni ijro etishda xato yuz berdi.";
+                    }
+                } else {
+                    responseAudio.classList.add('hidden');
+                    statusMessage.textContent = "Ovozli ma'lumot topilmadi yoki noto'g'ri formatda.";
+                }
+
+            } catch (e) {
+                statusMessage.textContent = `Xato: ${e.message}`;
+                responseAudio.classList.add('hidden');
+            } finally {
+                setUIState(false, 'tts');
+            }
+        }
+
+
+        // --- Audio yordamchi funksiyalar (PCM ni WAV ga o'tkazish uchun) ---
+
+        /** Base64 ma'lumotlarini ArrayBufferga aylantiradi. */
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        /** PCM Int16 Array ni WAV Blob'ga o'tkazadi. */
+        function pcmToWav(pcm16, sampleRate) {
+            const numChannels = 1;
+            const bitDepth = 16;
+            const buffer = new ArrayBuffer(44 + pcm16.length * 2);
+            const view = new DataView(buffer);
+            const byteRate = sampleRate * numChannels * (bitDepth / 8);
+            const blockAlign = numChannels * (bitDepth / 8);
+
+            // WAV Fayl Sarlavhasi (Header)
+            
+            // RIFF chunk descriptor
+            writeString(view, 0, 'RIFF'); // ChunkID
+            view.setUint32(4, 36 + pcm16.length * 2, true); // ChunkSize
+            writeString(view, 8, 'WAVE'); // Format
+
+            // fmt chunk
+            writeString(view, 12, 'fmt '); // Subchunk1ID
+            view.setUint32(16, 16, true); // Subchunk1Size (PCM uchun 16)
+            view.setUint16(20, 1, true); // AudioFormat (PCM uchun 1)
+            view.setUint16(22, numChannels, true); // NumChannels
+            view.setUint32(24, sampleRate, true); // SampleRate
+            view.setUint32(28, byteRate, true); // ByteRate
+            view.setUint16(32, blockAlign, true); // BlockAlign
+            view.setUint16(34, bitDepth, true); // BitsPerSample
+
+            // data chunk
+            writeString(view, 36, 'data'); // Subchunk2ID
+            view.setUint32(40, pcm16.length * 2, true); // Subchunk2Size
+
+            // PCM ma'lumotlarini nusxalash (Signed 16-bit)
+            let offset = 44;
+            for (let i = 0; i < pcm16.length; i++, offset += 2) {
+                view.setInt16(offset, pcm16[i], true);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        /** DataViewga matn yozish */
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        // Boshida tugmalar holatini yangilash
+        window.onload = () => {
+             // 100ms dan keyin holatni yangilashni boshlash.
+             setTimeout(() => setUIState(false), 100);
+        };
+        
+    </script>
+
+</body>
+</html>
